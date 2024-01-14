@@ -22,8 +22,8 @@ fn main() -> Result<(), WatchdogError> {
             controller.list_updates()?;
         } else if args().skip(1).take(1).any(|arg| arg == "send-report") {
             controller.send_report()?;
-        } else if args().skip(1).take(1).any(|arg| arg == "print-report") {
-            controller.print_report()?;
+        } else if args().skip(1).take(1).any(|arg| arg == "log-report") {
+            controller.log_report()?;
         }
     }
 
@@ -48,7 +48,13 @@ enum WatchdogError {
     NoLogPathConfigured(String),
     IoError(std::io::Error),
     NoApiKeyConfigured(String),
-    NoMonitorDisksConfigured(String),
+    SystemTimeError(std::time::SystemTimeError),
+}
+
+impl From<std::time::SystemTimeError> for WatchdogError {
+    fn from(v: std::time::SystemTimeError) -> Self {
+        Self::SystemTimeError(v)
+    }
 }
 
 impl From<std::io::Error> for WatchdogError {

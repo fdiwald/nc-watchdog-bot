@@ -27,16 +27,16 @@ impl Controller {
 
     pub(crate) fn send_report(&self) -> Result<(), WatchdogError> {
         println!("sending report...");
-        let message = Report::new(&self.config)?.create_message();
-        self.api.send_text_message(&message)?;
+        let (message, entities) = Report::new(&self.config)?.create_message()?;
+        self.api.send_text_message(&message, entities)?;
         print!("done sending report.");
         Ok(())
     }
-    
-    pub(crate) fn print_report(&self) -> Result<(), WatchdogError> {
-        println!("sending report...");
-        let message = Report::new(&self.config)?.create_message();
-        print!("{message}");
+
+    pub(crate) fn log_report(&self) -> Result<(), WatchdogError> {
+        println!("logging report...");
+        let (message_text, _) = Report::new(&self.config)?.create_message()?;
+        print!("{message_text}");
         Ok(())
     }
 }

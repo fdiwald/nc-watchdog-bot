@@ -1,19 +1,20 @@
-use std::ffi::OsString;
-
+use std::{path::PathBuf, ffi::OsString};
 use sysinfo::Disk;
 
-pub struct DiskInfo{
+pub struct DiskInfo {
     pub name: OsString,
-    pub total_space: u64,
-    pub available_space: u64,
+    pub mount_point: PathBuf,
+    pub total_space_gb: u64,
+    pub available_space_gb: u64,
 }
 
-impl From<&Disk> for DiskInfo  {
+impl From<&Disk> for DiskInfo {
     fn from(value: &Disk) -> Self {
         DiskInfo {
-            name: value.name().to_owned(),
-            total_space: value.total_space(),
-            available_space: value.available_space(),
+            name: OsString::from(value.name()),
+            mount_point: value.mount_point().to_owned(),
+            total_space_gb: value.total_space() / 1024 / 1024 / 1024,
+            available_space_gb: value.available_space() / 1024 / 1024 / 1024,
         }
     }
 }

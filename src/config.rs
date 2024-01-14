@@ -1,7 +1,5 @@
 use serde::Deserialize;
 use serde::Serialize;
-use std::ffi::OsString;
-use std::path::PathBuf;
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct WatchdogConfig {
@@ -14,7 +12,7 @@ pub struct WatchdogConfig {
 
 impl WatchdogConfig {
     pub(crate) fn with_missing_values(&self) -> WatchdogConfig {
-        fn clone_or_default<T:Clone + From<D>, D>(option: &Option<T>, default: D) -> Option<T> {
+        fn clone_or_default<T: Clone + From<D>, D>(option: &Option<T>, default: D) -> Option<T> {
             Some(if let Some(content) = option.as_ref() {
                 content.clone()
             } else {
@@ -27,10 +25,10 @@ impl WatchdogConfig {
             chat_id: clone_or_default(&self.chat_id, "<Chat-ID>"),
             user_id: clone_or_default(&self.user_id, "<User-ID>"),
             log_path: clone_or_default(&self.log_path, "/media/backup"),
-            monitor_disks: clone_or_default(&self.monitor_disks, vec![
-                String::from("/dev/sda1"),
-                String::from("/dev/sdb1"),
-            ]),
+            monitor_disks: clone_or_default(
+                &self.monitor_disks,
+                vec![String::from("/dev/sda1"), String::from("/dev/sdb1")],
+            ),
         }
     }
 }

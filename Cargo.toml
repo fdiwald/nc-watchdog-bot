@@ -10,5 +10,4 @@ confy = "0.5.1"
 frankenstein = "0.30.1"
 serde = { version = "1.0.195", features = ["derive"] }
 sysinfo = "0.30.5"
-time = "0.3.31"
-timeago = "0.4.2"
+systemd = "0.10.0"

@@ -7,7 +7,7 @@ pub struct WatchdogConfig {
     pub chat_id: Option<String>,
     pub user_id: Option<String>,
     pub log_path: Option<String>,
-    pub monitor_disks: Option<Vec<String>>,
+    pub monitored_disks: Option<Vec<String>>,
 }
 
 impl WatchdogConfig {
@@ -25,9 +25,9 @@ impl WatchdogConfig {
             chat_id: clone_or_default(&self.chat_id, "<Chat-ID>"),
             user_id: clone_or_default(&self.user_id, "<User-ID>"),
             log_path: clone_or_default(&self.log_path, "/media/backup"),
-            monitor_disks: clone_or_default(
-                &self.monitor_disks,
-                vec![String::from("/dev/sda1"), String::from("/dev/sdb1")],
+            monitored_disks: clone_or_default(
+                &self.monitored_disks,
+                vec![String::from("/"), String::from("/media/backup")],
             ),
         }
     }

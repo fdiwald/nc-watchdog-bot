@@ -97,7 +97,7 @@ fn get_last_backup_time(config: &WatchdogConfig) -> Result<SystemTime, WatchdogE
             "Report::new",
         )))?;
     let mysqldump_path = PathBuf::from(log_path_str).join("mysqldump.sql");
-    println!("calculating last_backup...");
+    println!("calculating last_backup from {:?}...", mysqldump_path);
     let last_backup_time = mysqldump_path.metadata()?.created()?;
     println!("last_backup: {last_backup_time:#?}");
     Ok(last_backup_time)
@@ -109,7 +109,7 @@ fn get_disk_infos(config: &WatchdogConfig) -> Result<Vec<DiskInfo>, WatchdogErro
         .map(|disk| DiskInfo::from(disk))
         .collect::<Vec<_>>();
 
-    if let Some(monitor_disks) = config.monitor_disks.as_ref() {
+    if let Some(monitor_disks) = config.monitored_disks.as_ref() {
         let monitor_disks = monitor_disks
             .iter()
             .map(|monitor_disk| OsString::from(monitor_disk))

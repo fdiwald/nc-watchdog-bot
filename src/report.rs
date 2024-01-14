@@ -98,7 +98,7 @@ fn get_last_backup_time(config: &WatchdogConfig) -> Result<SystemTime, WatchdogE
         )))?;
     let mysqldump_path = PathBuf::from(log_path_str).join("mysqldump.sql");
     println!("calculating last_backup from {:?}...", mysqldump_path);
-    let last_backup_time = mysqldump_path.metadata()?.created()?;
+    let last_backup_time = mysqldump_path.metadata()?.modified();
     println!("last_backup: {last_backup_time:#?}");
     Ok(last_backup_time)
 }

@@ -1,18 +1,23 @@
 mod diskinfo;
-use frankenstein::MessageEntity;
-
 use self::diskinfo::DiskInfo;
-use crate::{config::WatchdogConfig, WatchdogError, api::hypertext_element::{compile_hypertext_elements, Hypertext}};
+use crate::{
+    api::hypertext_element::{compile_hypertext_elements, Hypertext},
+    config::WatchdogConfig,
+    WatchdogError,
+};
+use frankenstein::MessageEntity;
 use std::{
+    collections::HashMap,
     ffi::OsString,
-    path::PathBuf,
+    fs::File,
+    path::{Path, PathBuf},
     time::{Duration, SystemTime},
 };
 type HT = Hypertext;
 
 pub(crate) struct Report {
     pub disk_info: Vec<DiskInfo>,
-    // pub file_info: Vec<fs::Metadata>,
+    pub error_files_status: HashMap<String, Result<(), String>>,
     pub last_backup: SystemTime,
 }
 
@@ -20,8 +25,8 @@ impl Report {
     pub(crate) fn new(config: &WatchdogConfig) -> Result<Report, WatchdogError> {
         Ok(Report {
             last_backup: get_last_backup_time(config)?,
+            error_files_status: get_error_files_status(config)?,
             disk_info: get_disk_infos(config)?,
-            //            file_info: todo!(),
         })
     }
 
@@ -29,7 +34,8 @@ impl Report {
         let mut hypertexts = vec![];
         hypertexts.append(self.create_backup_age_messages()?.as_mut());
         hypertexts.append(self.create_disk_usage_message()?.as_mut());
-        
+        hypertexts.append(self.create_error_files_message()?.as_mut());
+
         Ok(compile_hypertext_elements(hypertexts))
     }
 
@@ -41,7 +47,10 @@ impl Report {
         } else {
             "🟢"
         };
-        let message = HT::text(&format!("{icon} Last backup ran {0}.\n", format_duration(backup_age)));
+        let message = HT::text(&format!(
+            "{icon} Last backup ran {0}.\n",
+            format_duration(backup_age)
+        ));
         Ok(vec![header, message])
     }
 
@@ -58,11 +67,30 @@ impl Report {
                     };
                     HT::text(format!(
                         "{icon} {0} ({1}) {2}GB free\n",
-                        disk_info.name.to_str().expect(&format!("Could not convert disk name {0:?} to a string.", disk_info.name)),
+                        disk_info.name.to_str().expect(&format!(
+                            "Could not convert disk name {0:?} to a string.",
+                            disk_info.name
+                        )),
                         disk_info.mount_point.display(),
                         disk_info.available_space_gb
                     ))
                 })
+                .collect::<Vec<_>>()
+                .as_mut(),
+        );
+        Ok(result)
+    }
+
+    fn create_error_files_message(&self) -> Result<Vec<Hypertext>, WatchdogError> {
+        let mut result = vec![HT::bold("Logs\n")];
+        result.append(
+            self.error_files_status
+                .iter()
+                .map(|(file, status)| match status {
+                    Ok(_) => vec![format!("🟢 {file}\n").into()],
+                    Err(_) => vec!["🔴 Found errors in ".into(), HT::bold(format!("{file}\n"))],
+                })
+                .flatten()
                 .collect::<Vec<_>>()
                 .as_mut(),
         );
@@ -98,9 +126,30 @@ fn get_last_backup_time(config: &WatchdogConfig) -> Result<SystemTime, WatchdogE
         )))?;
     let mysqldump_path = PathBuf::from(log_path_str).join("mysqldump.sql");
     println!("calculating last_backup from {:?}...", mysqldump_path);
-    let last_backup_time = mysqldump_path.metadata()?.modified()?;
-    println!("last_backup: {last_backup_time:#?}");
-    Ok(last_backup_time)
+    let last_db_backup_time = mysqldump_path.metadata()?.modified()?;
+    println!("last_backup: {last_db_backup_time:#?}");
+    Ok(last_db_backup_time)
+}
+
+fn get_error_files_status(
+    config: &WatchdogConfig,
+) -> Result<HashMap<String, Result<(), String>>, WatchdogError> {
+    if let Some(error_files) = &config.error_files {
+        let mut results: HashMap<String, Result<(), String>> = HashMap::new();
+        for file in error_files {
+            results.insert(
+                file.clone(),
+                if Path::new(file).exists() && File::open(file)?.metadata()?.len() > 0 {
+                    Err(format!("Found errors in file {file}."))
+                } else {
+                    Ok(())
+                },
+            );
+        }
+        Ok(results)
+    } else {
+        Ok(HashMap::new())
+    }
 }
 
 fn get_disk_infos(config: &WatchdogConfig) -> Result<Vec<DiskInfo>, WatchdogError> {

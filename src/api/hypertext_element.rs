@@ -56,3 +56,9 @@ pub(crate) fn compile_hypertext_elements(
 
     (message, entities)
 }
+
+impl<T> From<T> for Hypertext where T: Into<String> {
+    fn from(value: T) -> Self {
+        Hypertext::text(value)
+    }
+}

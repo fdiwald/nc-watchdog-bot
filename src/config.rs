@@ -8,6 +8,7 @@ pub struct WatchdogConfig {
     pub user_id: Option<String>,
     pub log_path: Option<String>,
     pub monitored_disks: Option<Vec<String>>,
+    pub error_files: Option<Vec<String>>,
 }
 
 impl WatchdogConfig {
@@ -28,6 +29,10 @@ impl WatchdogConfig {
             monitored_disks: clone_or_default(
                 &self.monitored_disks,
                 vec![String::from("/"), String::from("/media/backup")],
+            ),
+            error_files: clone_or_default(
+                &self.error_files,
+                vec![String::from("/var/log/backup.err.log"), String::from("/var/log/server.err.log")],
             ),
         }
     }

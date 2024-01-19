@@ -24,6 +24,17 @@ fn main() -> Result<(), WatchdogError> {
             controller.send_report()?;
         } else if args().skip(1).take(1).any(|arg| arg == "log-report") {
             controller.log_report()?;
+        } else{
+            println!("A telegram bot that sends you a report about your system's status.");
+            println!("");
+            println!("Syntax:");
+            println!("   nc-watchdog-bot [COMMAND]");
+            println!("");
+            println!("Commands:");
+            println!("  initialize-config   Fill all empty config entries with dummy values, remove unneeded entries and print the config file path to stdout.");
+            println!("  list-updates        Retrieve updates from the telegram server and print them to stdout.");
+            println!("  log-report          Print the system report to stdout.");
+            println!("  send-report         Send the system report to the configured telegram chat.");
         }
     }
 

@@ -17,14 +17,23 @@ fn main() -> Result<(), WatchdogError> {
     } else {
         let config: WatchdogConfig = confy::load(app_name, None)?;
         let controller = Controller::new(config)?;
-        
-        if args().skip(1).take(1).any(|arg| arg == "list-updates") {
+
+        if args().skip(1).take(1).any(|arg| arg == "log-config") {
+            println!(
+                "{}",
+                confy::get_configuration_file_path(app_name, None).map_or_else(
+                    |err| format!("Error getting configuration file path{:#?}", err),
+                    |path| format!("Configuration file path: {:#?}", path)
+                )
+            );
+            println!("{:#?}", controller.config);
+        } else if args().skip(1).take(1).any(|arg| arg == "list-updates") {
             controller.list_updates()?;
         } else if args().skip(1).take(1).any(|arg| arg == "send-report") {
             controller.send_report()?;
         } else if args().skip(1).take(1).any(|arg| arg == "log-report") {
             controller.log_report()?;
-        } else{
+        } else {
             println!("A telegram bot that sends you a report about your system's status.");
             println!("");
             println!("Syntax:");
@@ -32,9 +41,10 @@ fn main() -> Result<(), WatchdogError> {
             println!("");
             println!("Commands:");
             println!("  initialize-config   Fill all empty config entries with dummy values, remove unneeded entries and print the config file path to stdout.");
+            println!("  log-config          Print the config file's path and content to stdout.");
             println!("  list-updates        Retrieve updates from the telegram server and print them to stdout.");
-            println!("  log-report          Print the system report to stdout.");
-            println!("  send-report         Send the system report to the configured telegram chat.");
+            println!("  log-report          Write the system report to stdout.");
+            println!("  send-report         Create and send the system report to the configured telegram chat.");
         }
     }
 
@@ -56,7 +66,6 @@ enum WatchdogError {
     ConfyError(confy::ConfyError),
     FrankensteinError(frankenstein::Error),
     NoChatIdConfigured(String),
-    NoLogPathConfigured(String),
     IoError(std::io::Error),
     NoApiKeyConfigured(String),
     SystemTimeError(std::time::SystemTimeError),

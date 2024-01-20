@@ -4,7 +4,7 @@ use crate::{api::ApiWrapper, config::WatchdogConfig, report::Report, WatchdogErr
 
 pub struct Controller {
     api: ApiWrapper,
-    config: Rc<WatchdogConfig>,
+    pub(super) config: Rc<WatchdogConfig>,
 }
 
 impl Controller {

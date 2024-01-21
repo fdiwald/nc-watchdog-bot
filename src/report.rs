@@ -38,23 +38,23 @@ impl Report {
     }
 
     fn create_disk_usage_message(&self) -> Result<Vec<Hypertext>, WatchdogError> {
-        let mut result = vec![HT::bold("Disks\n")];
+        let mut result = vec![HT::bold("💾 Disks\n")];
         result.append(
             self.disk_info
                 .iter()
                 .map(|(mount_point, disk_info_result)| match disk_info_result {
                     Ok(disk_info) => format!(
-                        "🟢 {0} ({mount_point}) {1}GB free\n",
+                        "   🟢 {0} ({mount_point}) {1}GB free\n",
                         disk_info.name, disk_info.free_space_gb
                     )
                     .into(),
                     Err(DiskError::DiskTooFull(disk_info)) => format!(
-                        "🔴 {0} ({mount_point}) {1}GB free\n",
+                        "   🔴 {0} ({mount_point}) {1}GB free\n",
                         disk_info.name, disk_info.free_space_gb
                     )
                     .into(),
                     Err(DiskError::MountPointNotFound) => {
-                        format!("🔴 mount point {mount_point} not found\n").into()
+                        format!("   🔴 mount point {mount_point} not found\n").into()
                     }
                 })
                 .collect::<Vec<_>>()
@@ -64,18 +64,18 @@ impl Report {
     }
 
     fn create_log_files_message(&self) -> Result<Vec<Hypertext>, WatchdogError> {
-        let mut result = vec![HT::bold("Logs\n")];
+        let mut result = vec![HT::bold("🧾 Logs\n")];
         result.append(
             self.log_files_status
                 .iter()
                 .map(|(file, status)| match status {
-                    Ok(_) => vec![format!("🟢 {file}\n").into()],
+                    Ok(_) => vec![format!("   🟢 {file}\n").into()],
                     Err(LogFileError::ErrorsFound { .. }) => {
-                        vec!["🔴 Found errors in ".into(), HT::bold(format!("{file}\n"))]
+                        vec!["   🔴 Found errors in ".into(), HT::bold(format!("{file}\n"))]
                     }
                     Err(LogFileError::FileAgeExceeded { modified_time }) => {
                         vec![format!(
-                            "🔴 Age of {file} ({}) exceeds the limit.\n",
+                            "   🔴 Age of {file} ({}) exceeds the limit.\n",
                             format_duration_since(*modified_time)
                         )
                         .into()]
@@ -83,7 +83,7 @@ impl Report {
                     Err(LogFileError::NoLogFilesDefined) => {
                         vec![format!("No log files configured").into()]
                     }
-                    Err(error) => vec![format!("🔴 {:#?}\n", error).into()],
+                    Err(error) => vec![format!("   🔴 {:#?}\n", error).into()],
                 })
                 .flatten()
                 .collect::<Vec<_>>()

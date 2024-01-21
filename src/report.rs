@@ -1,6 +1,7 @@
-mod diskinfo;
+mod disk_error;
+mod disk_info;
 mod logfile_error;
-use self::{diskinfo::DiskInfo, logfile_error::LogFileError};
+use self::{disk_error::DiskError, disk_info::DiskInfo, logfile_error::LogFileError};
 use crate::{
     api::hypertext_element::{compile_hypertext_elements, Hypertext},
     config::{LogFile, WatchdogConfig},
@@ -16,15 +17,15 @@ use std::{
 type HT = Hypertext;
 
 pub(crate) struct Report {
-    pub disk_info: Vec<DiskInfo>,
-    pub log_files_status: Vec<(String, Result<(), LogFileError>)>,
+    disk_info: Vec<(String, Result<DiskInfo, DiskError>)>,
+    log_files_status: Vec<(String, Result<(), LogFileError>)>,
 }
 
 impl Report {
     pub(crate) fn new(config: &WatchdogConfig) -> Result<Report, WatchdogError> {
         Ok(Report {
             log_files_status: get_log_files_status(config),
-            disk_info: get_disk_infos(config)?,
+            disk_info: get_disk_infos(config),
         })
     }
 
@@ -41,21 +42,20 @@ impl Report {
         result.append(
             self.disk_info
                 .iter()
-                .map(|disk_info| {
-                    let icon = if disk_info.available_space_gb < 10 {
-                        "🔴"
-                    } else {
-                        "🟢"
-                    };
-                    HT::text(format!(
-                        "{icon} {0} ({1}) {2}GB free\n",
-                        disk_info.name.to_str().expect(&format!(
-                            "Could not convert disk name {0:?} to a string.",
-                            disk_info.name
-                        )),
-                        disk_info.mount_point.display(),
-                        disk_info.available_space_gb
-                    ))
+                .map(|(mount_point, disk_info_result)| match disk_info_result {
+                    Ok(disk_info) => format!(
+                        "🟢 {0} ({mount_point}) {1}GB free\n",
+                        disk_info.name, disk_info.free_space_gb
+                    )
+                    .into(),
+                    Err(DiskError::DiskTooFull(disk_info)) => format!(
+                        "🔴 {0} ({mount_point}) {1}GB free\n",
+                        disk_info.name, disk_info.free_space_gb
+                    )
+                    .into(),
+                    Err(DiskError::MountPointNotFound) => {
+                        format!("🔴 mount point {mount_point} not found\n").into()
+                    }
                 })
                 .collect::<Vec<_>>()
                 .as_mut(),
@@ -79,6 +79,9 @@ impl Report {
                             format_duration_since(*modified_time)
                         )
                         .into()]
+                    }
+                    Err(LogFileError::NoLogFilesDefined) => {
+                        vec![format!("No log files configured").into()]
                     }
                     Err(error) => vec![format!("🔴 {:#?}\n", error).into()],
                 })
@@ -115,46 +118,34 @@ fn get_log_files_status(config: &WatchdogConfig) -> Vec<(String, Result<(), LogF
         log_files
             .iter()
             .map(|log_file| {
-                if let Some(log_file_path) = log_file.path.clone() {
-                    (
-                        log_file_path,
-                        if let Err(error) = check_error_file(&log_file.error_path) {
-                            Err(error)
-                        } else {
-                            check_log_file(&log_file)
-                        },
-                    )
-                } else {
-                    (
-                        String::from("<No path defined>"),
-                        Err(LogFileError::NoLogFileDefined),
-                    )
-                }
+                (
+                    log_file.path.clone(),
+                    if let Err(error) = check_error_file(&log_file.error_path) {
+                        Err(error)
+                    } else {
+                        check_log_file(&log_file)
+                    },
+                )
             })
             .collect::<Vec<_>>()
     } else {
-        Vec::new()
+        vec![(String::new(), Err(LogFileError::NoLogFilesDefined))]
     }
 }
 
 fn check_log_file(log_file: &LogFile) -> Result<(), LogFileError> {
-    if let Some(log_file_path) = &log_file.path {
-        if !Path::new(log_file_path).exists() {
-            Err(LogFileError::FileNotFound)
-        } else {
-            {
-                let modified_time = File::open(log_file_path)?.metadata()?.modified()?;
-                let max_age =
-                    Duration::from_secs(log_file.max_age_seconds.unwrap_or(60 * 60 * 24u64));
-                if SystemTime::now().duration_since(modified_time)? > max_age {
-                    Err(LogFileError::FileAgeExceeded { modified_time })
-                } else {
-                    Ok(())
-                }
+    if !Path::new(&log_file.path).exists() {
+        Err(LogFileError::FileNotFound)
+    } else {
+        {
+            let modified_time = File::open(log_file.path.clone())?.metadata()?.modified()?;
+            let max_age = Duration::from_secs(log_file.max_age_seconds.unwrap_or(60 * 60 * 24u64));
+            if SystemTime::now().duration_since(modified_time)? > max_age {
+                Err(LogFileError::FileAgeExceeded { modified_time })
+            } else {
+                Ok(())
             }
         }
-    } else {
-        Ok(())
     }
 }
 
@@ -172,16 +163,48 @@ fn check_error_file(error_path: &Option<String>) -> Result<(), LogFileError> {
     return Ok(());
 }
 
-fn get_disk_infos(config: &WatchdogConfig) -> Result<Vec<DiskInfo>, WatchdogError> {
+fn get_disk_infos(config: &WatchdogConfig) -> Vec<(String, Result<DiskInfo, DiskError>)> {
     let mut disk_infos = sysinfo::Disks::new_with_refreshed_list()
         .iter()
         .map(|disk| DiskInfo::from(disk))
         .collect::<Vec<_>>();
 
+    filter_configured_disks(config, &mut disk_infos);
+
+    let disks = sysinfo::Disks::new_with_refreshed_list();
+    let no_monitored_disks = vec![];
+    config
+        .monitored_disks
+        .as_ref()
+        .unwrap_or_else(|| &no_monitored_disks)
+        .iter()
+        .map(|monitored_disk| {
+            if let Some(disk) = disks.iter().find(|disk| {
+                disk.mount_point() == OsString::from(monitored_disk.mount_point.clone())
+            }) {
+                if disk.available_space() / 1000 / 1000 > monitored_disk.free_space_limit_mb {
+                    (monitored_disk.mount_point.clone(), Ok(disk.into()))
+                } else {
+                    (
+                        monitored_disk.mount_point.clone(),
+                        Err(DiskError::DiskTooFull(disk.into())),
+                    )
+                }
+            } else {
+                (
+                    monitored_disk.mount_point.clone(),
+                    Err(DiskError::MountPointNotFound),
+                )
+            }
+        })
+        .collect()
+}
+
+fn filter_configured_disks(config: &WatchdogConfig, disk_infos: &mut Vec<DiskInfo>) {
     if let Some(monitor_disks) = config.monitored_disks.as_ref() {
         let monitor_disks = monitor_disks
             .iter()
-            .map(|monitor_disk| OsString::from(monitor_disk))
+            .map(|monitor_disk| OsString::from(monitor_disk.mount_point.clone()))
             .collect::<Vec<_>>();
 
         disk_infos.retain(|disk| {
@@ -190,8 +213,4 @@ fn get_disk_infos(config: &WatchdogConfig) -> Result<Vec<DiskInfo>, WatchdogErro
                 .any(|monitor_disk| monitor_disk == &disk.mount_point)
         });
     }
-
-    let result = disk_infos;
-
-    Ok(result)
 }

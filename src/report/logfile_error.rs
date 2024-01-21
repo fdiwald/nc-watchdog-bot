@@ -2,7 +2,7 @@ use std::time::SystemTime;
 
 #[derive(Debug)]
 pub(crate) enum LogFileError {
-    NoLogFileDefined,
+    NoLogFilesDefined,
     FileNotFound,
     ErrorsFound,
     FileAgeExceeded { modified_time: SystemTime },
